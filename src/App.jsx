@@ -1,21 +1,60 @@
 import React, { useState } from 'react';
 import './App.scss';
-import { cn } from 'classnames';
+import cn from 'classnames';
 
 import usersFromServer from './api/users';
 import categoriesFromServer from './api/categories';
 import productsFromServer from './api/products';
 
+const preparedProducts = productsFromServer.map((product) => {
+  const category = categoriesFromServer
+    .find(productCategory => productCategory.id === product.categoryId);
+  const user = usersFromServer.find(person => person.id === category.ownerId);
+
+  return {
+    ...product,
+    user,
+    categories: category,
+  };
+});
+
+function getFilteredList(products, query, filterCategory, owner) {
+  let preparedProductisList = [...products];
+
+  if (query) {
+    preparedProductisList = preparedProductisList.filter(product => (
+      product.name.toLowerCase()
+        .includes(query.toLowerCase().trim())
+    ));
+  }
+
+  if (filterCategory) {
+    preparedProductisList = preparedProductisList.filter(product => (
+      product.categories.ownerId === filterCategory
+    ));
+  }
+
+  if (owner) {
+    preparedProductisList = preparedProductisList.filter(product => (
+      product.categories.ownerId === owner
+    ));
+  }
+
+  return preparedProductisList;
+}
+
 export const App = () => {
-  const [categoryOwner, setCategoryOwner] = useState(usersFromServer[0].id);
+  const [categoryOwner, setCategoryOwner] = useState('');
   const [filteredName, setFilteredName] = useState('');
+  const [filteredCategory, setFilteredCategory] = useState('');
 
-  const filteredProducts = productsFromServer.filter((product) => {
-    const isNameMatch
-      = product.name.toLowerCase().includes(filteredName.toLowerCase());
-
-    return isNameMatch;
-  });
+  const visibleProducts
+    = getFilteredList(
+      preparedProducts,
+      filteredName,
+      filteredCategory,
+      categoryOwner,
+    );
 
   return (
     <div className="section">
@@ -26,7 +65,7 @@ export const App = () => {
           <nav className="panel">
             <p className="panel-heading">Filters</p>
 
-            <p className="panel-tabs has-text-weight-bold">
+            <div className="panel-tabs has-text-weight-bold">
               <a
                 data-cy="FilterAllUsers"
                 href="#/"
@@ -42,6 +81,7 @@ export const App = () => {
                 <a
                   data-cy="FilterUser"
                   href="#/"
+                  key={user.id}
                   className={cn({ 'is-active': categoryOwner === user.id })}
                   onClick={() => {
                     setCategoryOwner(user.id);
@@ -50,7 +90,7 @@ export const App = () => {
                   {user.name}
                 </a>
               ))}
-            </p>
+            </div>
 
             <div className="panel-block">
               <p className="control has-icons-left has-icons-right">
@@ -60,7 +100,9 @@ export const App = () => {
                   className="input"
                   placeholder="Search"
                   value={filteredName}
-                  onChange={event => setFilteredName(event.target.value)}
+                  onChange={(event) => {
+                    setFilteredName(event.target.value);
+                  }}
                 />
 
                 <span className="icon is-left">
@@ -68,13 +110,14 @@ export const App = () => {
                 </span>
 
                 <span className="icon is-right">
-                  {/* eslint-disable-next-line jsx-a11y/control-has-associated-label */}
-                  <button
-                    data-cy="ClearButton"
-                    type="button"
-                    className="delete"
-                    onClick={() => setFilteredName('')}
-                  />
+                  {filteredName && (
+                    <button
+                      data-cy="ClearButton"
+                      type="button"
+                      className="delete"
+                      onClick={() => setFilteredName('')}
+                    />
+                  )}
                 </span>
               </p>
             </div>
@@ -84,15 +127,24 @@ export const App = () => {
                 href="#/"
                 data-cy="AllCategories"
                 className="button is-success mr-6 is-outlined"
+                onClick={() => {
+                  setFilteredCategory('');
+                }}
               >
                 All
               </a>
 
               {categoriesFromServer.map(category => (
                 <a
+                  key={category.id}
                   data-cy="Category"
-                  className="button mr-2 my-1 is-info"
+                  className={cn('button mr-2', {
+                    'my-1 is-info': filteredCategory === category.id,
+                  })}
                   href="#/"
+                  onClick={() => {
+                    setFilteredCategory(category.id);
+                  }}
                 >
                   {category.title}
                 </a>
@@ -118,8 +170,8 @@ export const App = () => {
 
         <div className="box table-container">
           <p data-cy="NoMatchingMessage">
-            {filteredProducts.length === 0
-              && 'No products matching selected criteria'}
+            {visibleProducts.length === 0
+              && ('No products matching selected criteria')}
           </p>
 
           <table
@@ -179,7 +231,7 @@ export const App = () => {
             </thead>
 
             <tbody>
-              {filteredProducts.map(product => (
+              {visibleProducts.map(product => (
                 <tr key={product.id} data-cy="Product">
                   <td className="has-text-weight-bold" data-cy="ProductId">
                     {product.id}
@@ -187,21 +239,17 @@ export const App = () => {
 
                   <td data-cy="ProductName">{product.name}</td>
                   <td data-cy="ProductCategory">
-                    {categoriesFromServer.find(category => category.id
-                      === product.categoryId).icon}
+                    {product.categories.icon}
                     -
-                    {categoriesFromServer.find(category => category.id
-                      === product.categoryId).title}
+                    {product.categories.title}
                   </td>
 
                   <td
                     data-cy="ProductUser"
-                    className={usersFromServer
-                      .find(user => user.id === product.ownerId).sex
+                    className={product.user.sex
                       === 'm' ? 'has-text-link' : 'has-text-danger'}
                   >
-                    {usersFromServer.find(user => user.id
-                      === product.ownerId).name}
+                    {product.user.name}
                   </td>
                 </tr>
               ))}
